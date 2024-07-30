@@ -1,98 +1,113 @@
-def input_error(func):
-    def inner(*args, **kwargs):
-        try:
-          return func(*args, **kwargs)
-        except ValueError:
-          return "Enter the argument for the command"
-        except KeyError:
-          return "Contact does no exist"
-        except IndexError as e:
-          return f"I have no idea where this error can occur in the existing code, but here is the error: {e}"
+from collections import UserDict
+class Field:
+  def __init__(self, value):
+    self.value = value
 
-    return inner
+  def __str__(self):
+    return str(self.value)
 
-def parse_input(user_input: str):
-    cmd, *args = user_input.split()
-    cmd = cmd.strip().lower()
-    return cmd, *args
+class Name(Field):
+  pass
 
-@input_error
-def add_contact(args, contacts: dict):
-    name, phone = args
-    if not name or not phone:
-      raise ValueError()
+class Phone(Field):
+  def __init__(self, value: str):
+    if not value.isdigit() or len(value) != 10:
+      raise ValueError(f'Phone must be a number of length 10') 
+    super().__init__(value)
+
+class Record:
+  def __init__(self, name: str) -> None:
+    self.name = Name(name)
+    self.phones = []
+
+  def add_phone(self, phone: str) -> None:
+    phone = phone.strip()
+    found = False
+    try:
+      self.find_phone(phone)
+      found = True  
+    except:
+      pass
+
+    if found:
+       raise ValueError(f'Phone {phone} already exists in contacts')
     
-    contacts[name] = phone
-    return "Contact added."
+    self.phones.append(Phone(phone))
 
-@input_error
-def change_contact(args, contacts: dict):
-  name, phone = args
-  if not name or not phone:
-    raise ValueError()
-
-  existing_phone = contacts.get(name)
-  if not existing_phone:
-    return f"contact with name {name} does not exist"
+  def remove_phone(self, phone: str) -> None:
+    phone = phone.strip()
+    self.phones = list(filter(lambda p: p['value'] == phone, self.phones))
+    print(f'Phone {phone} successfully removed')
   
-  contacts[name] = phone
-  return "Contact updated."
-
-@input_error
-def show_phone(args, contacts: dict):
-  [name] = args
-  if not name:
-    raise ValueError()
+  def edit_phone(self, old_phone: str, new_phone: str) -> None:
+    found_phone = self.find_phone(old_phone.strip())
+    found_phone.value = new_phone
+    print(f'New phone {new_phone} successfully replaced old phone {old_phone}')
   
-  return contacts[name]
+  def find_phone(self, phone: str) -> str:
+    phone = phone.strip()
+    
+    found_phone = next((p for p in self.phones if p.value == phone), None)
+    if found_phone == None:
+      raise Exception(f'Phone {phone} not found in contacts')
+    
+    return found_phone
 
-def show_all(contacts: dict):
-  if not contacts.keys():
-    return "There is no contacts in the list"
+  def __str__(self):
+    return f"Contact name: {self.name.value}, phones: {'; '.join(p.value for p in self.phones)}"
+
+
+
+class AddressBook(UserDict):
+  def __init__(self):
+    super().__init__()
+    self.last_id = 0
+
+  def add_record(self, record: Record) -> None:
+    self.last_id += 1
+    self.data[self.last_id] = record
+
+  def find(self, name: str) -> tuple[str, Record] | None:
+    record = next((record for record in self.data.values() if record.name.value == name), None)
+    return record
   
-  result = []
-  for name, phone in contacts.items():
-    result.append(f"{name} {phone}")
-  return "\n".join(result)
+  def delete(self, name: str):
+    key = next((key for key in self.data.keys() if self.data[key].name.value == name), None)
+    if not key:
+       raise ValueError(f'record with name {name} not found in contacts')
+    del self.data[key]
 
 
-def main():
-  print("Welcome to the assistant bot!")
-  contacts = {}
 
-  while True:
-    user_input = input().strip()
-    command, *args = parse_input(user_input)
+# Створення нової адресної книги
+book = AddressBook()
 
-    if command in ["close", "exit"]:
-      print("Good bye!")
-      break
-    elif command == 'hello':
-      print('How can I help you?')
-    elif command == 'add':
-      print(add_contact(args, contacts))
-    elif command == 'change':
-      print(change_contact(args, contacts))
-    elif command == 'phone':
-      print(show_phone(args, contacts))
-    elif command == 'all':
-      print(show_all(contacts))
-    else:
-      print("Invalid command.")
+# Створення запису для John
+john_record = Record("John")
+john_record.add_phone("1234567890")
+john_record.add_phone("5555555555")
 
-      
-if __name__ == '__main__':
-  main()
+# Додавання запису John до адресної книги
+book.add_record(john_record)
 
+# Створення та додавання нового запису для Jane
+jane_record = Record("Jane")
+jane_record.add_phone("9876543210")
+book.add_record(jane_record)
 
-# Enter a command: add
-# Enter the argument for the command
-# Enter a command: add Bob
-# Enter the argument for the command
-# Enter a command: add Jime 0501234356
-# Contact added.
-# Enter a command: phone
-# Enter the argument for the command
-# Enter a command: all
-# Jime: 0501234356 
-# Enter a command:
+# Виведення всіх записів у книзі
+for name, record in book.data.items():
+    print(record)
+
+# Знаходження та редагування телефону для John
+john = book.find("John")
+john.edit_phone("1234567890", "1112223333")
+
+print(john)  # Виведення: Contact name: John, phones: 1112223333; 5555555555
+
+# Пошук конкретного телефону у записі John
+found_phone = john.find_phone("5555555555")
+print(f"{john.name}: {found_phone}")  # Виведення: 5555555555
+
+# Видалення запису Jane
+book.delete("Jane")
